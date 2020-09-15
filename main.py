@@ -6,8 +6,8 @@ import os
 # Directorio actual.
 cwd = os.getcwd()
 
-SOURCE_PATH = 'data/source/jpg'
-TARGET_PATH = 'data/target/jpg'
+SOURCE_PATH = 'source'  # 'data/source/jpg'
+TARGET_PATH = 'target'  # 'data/target/jpg'
 
 # SIZE (200, 50)
 IMG_HEIGHT = 50
@@ -81,5 +81,74 @@ def load_test_image(filename):
     return load_image(filename, False)
 
 
-plt.imshow((load_train_image(imagesJPG[0][0])[0] + 1) / 2)
-plt.show()
+# Urls y separando train y test.
+images = imagesJPG[0]
+n_images = len(images)
+porcent = int(n_images*0.8)
+train_images = images[:porcent]
+test_images = images[porcent:]
+
+# plt.imshow((load_train_image(imagesJPG[0][0])[0] + 1) / 2)
+# plt.show()
+
+# Datasets
+# Train
+train_dataset = tf.data.Dataset.from_tensor_slices(train_images)
+train_dataset = train_dataset.map(
+    load_train_image, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+
+train_dataset = train_dataset.batch(1)
+
+# Test
+test_dataset = tf.data.Dataset.from_tensor_slices(test_images)
+test_dataset = test_dataset.map(
+    load_test_image, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+
+test_dataset = test_dataset.batch(1)
+
+# Capas de downsample del Encoder.
+
+
+def downsample(filters, apply_batchnorm=True):
+    initializer = tf.random_normal_initializer(0., 0.02)
+
+    result = tf.keras.Sequential()
+    # Capa convolucional
+    result.add(
+        tf.keras.layers.Conv2D(filters, 4, strides=2, padding='same',
+                               kernel_initializer=initializer, use_bias=not apply_batchnorm))
+
+    # Batch normalization
+    if apply_batchnorm:
+        result.add(tf.keras.layers.BatchNormalization())
+
+    # LeakyRelu
+    result.add(tf.keras.layers.LeakyReLU())
+
+    return result
+
+# Capa de upsampling del decoder.
+
+
+def upsample(filters, apply_dropout=False):
+    initializer = tf.random_normal_initializer(0., 0.02)
+
+    result = tf.keras.Sequential()
+    # Convolucional inversa
+    result.add(
+        tf.keras.layers.Conv2DTranspose(filters, 4, strides=2,
+                                        padding='same',
+                                        kernel_initializer=initializer,
+                                        use_bias=False))
+
+    # BN
+    result.add(tf.keras.layers.BatchNormalization())
+
+    # Aplicamos Dropout o no
+    if apply_dropout:
+        result.add(tf.keras.layers.Dropout(0.5))
+
+    # Capa de activacion ReLU
+    result.add(tf.keras.layers.ReLU())
+
+    return result
